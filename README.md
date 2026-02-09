@@ -2,6 +2,13 @@
 
 A machine learning system for binary classification of stroke risk based on patient symptoms and demographics.
 
+## Live Demo
+
+The application is deployed on Rahti (CSC OpenShift):
+
+- **Frontend**: https://stroke-fe-sdx-assignment-ngvo.2.rahtiapp.fi
+- **Backend API**: https://stroke-api-sdx-assignment-ngvo.2.rahtiapp.fi
+
 ## Problem Description
 
 This project predicts whether a patient is at risk of stroke using clinical symptoms and demographic data. The system uses supervised learning techniques to classify patients into "At Risk" or "Not At Risk" categories.
