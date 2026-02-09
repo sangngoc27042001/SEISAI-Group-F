@@ -1,0 +1,122 @@
+# --- Backend: Deployment, Service, Route ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stroke-api
+  labels:
+    app: stroke-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stroke-api
+  template:
+    metadata:
+      labels:
+        app: stroke-api
+    spec:
+      containers:
+        - name: stroke-api
+          image: image-registry.apps.2.rahti.csc.fi/sdx-assignment-ngvo/stroke-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: stroke-secrets
+                  key: MONGODB_URI
+          resources:
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stroke-api
+  labels:
+    app: stroke-api
+spec:
+  selector:
+    app: stroke-api
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: stroke-api
+spec:
+  to:
+    kind: Service
+    name: stroke-api
+  port:
+    targetPort: 8000
+  tls:
+    termination: edge
+---
+# --- Frontend: Deployment, Service, Route ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stroke-fe
+  labels:
+    app: stroke-fe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stroke-fe
+  template:
+    metadata:
+      labels:
+        app: stroke-fe
+    spec:
+      containers:
+        - name: stroke-fe
+          image: image-registry.apps.2.rahti.csc.fi/sdx-assignment-ngvo/stroke-fe:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: BE_BASE_URL
+              value: "https://stroke-api-sdx-assignment-ngvo.2.rahtiapp.fi"
+          resources:
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stroke-fe
+  labels:
+    app: stroke-fe
+spec:
+  selector:
+    app: stroke-fe
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: stroke-fe
+spec:
+  to:
+    kind: Service
+    name: stroke-fe
+  port:
+    targetPort: 3000
+  tls:
+    termination: edge

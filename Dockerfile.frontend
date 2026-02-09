@@ -1,0 +1,10 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY src/fe/ fe/
+RUN chmod -R 777 fe/
+
+EXPOSE 3000
+
+CMD sh -c 'echo "window.__CONFIG__ = { BE_BASE_URL: \"${BE_BASE_URL}\" };" > fe/config.js && python -m http.server 3000 --directory fe'

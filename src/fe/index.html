@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stroke Risk Prediction - Group F</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <header>
+        <h1>Stroke Risk Prediction</h1>
+        <p class="subtitle">Group F &mdash; Software for Intelligent Systems and Artificial Intelligence</p>
+    </header>
+
+    <nav class="tabs">
+        <button class="tab active" data-tab="about">About the Project</button>
+        <button class="tab" data-tab="predict">Try the AI</button>
+    </nav>
+
+    <!-- About Tab -->
+    <section id="about" class="tab-content active">
+        <div class="card">
+            <h2>About This Project</h2>
+            <p>
+                This project was developed by <strong>Group F</strong> for the course
+                <em>Software for Intelligent Systems and Artificial Intelligence (811604S-3006)</em>.
+            </p>
+            <p>
+                Our goal is to predict stroke risk based on a set of clinical symptoms using
+                multiple machine learning models. The system takes patient symptoms as input
+                and returns a risk assessment powered by an ensemble of 10 trained classifiers.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>How It Works</h2>
+            <ol>
+                <li>The patient provides 15 binary symptom indicators and their age.</li>
+                <li>The data is sent to our FastAPI backend, which scales the input and feeds it to the models.</li>
+                <li>Each model independently produces a prediction and a probability score.</li>
+                <li>An ensemble result is computed via majority vote and averaged probability.</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h2>Models Used</h2>
+            <ul class="model-list">
+                <li>Logistic Regression</li>
+                <li>Decision Tree</li>
+                <li>Random Forest</li>
+                <li>Gradient Boosting</li>
+                <li>AdaBoost</li>
+                <li>SVM</li>
+                <li>K-Nearest Neighbors</li>
+                <li>Naive Bayes</li>
+                <li>XGBoost</li>
+                <li>LightGBM</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Input Features</h2>
+            <p>The model considers the following symptoms (each marked as present or absent) plus patient age:</p>
+            <ul class="feature-list">
+                <li>Chest Pain</li>
+                <li>Shortness of Breath</li>
+                <li>Irregular Heartbeat</li>
+                <li>Fatigue &amp; Weakness</li>
+                <li>Dizziness</li>
+                <li>Swelling (Edema)</li>
+                <li>Pain in Neck / Jaw / Shoulder / Back</li>
+                <li>Excessive Sweating</li>
+                <li>Persistent Cough</li>
+                <li>Nausea / Vomiting</li>
+                <li>High Blood Pressure</li>
+                <li>Chest Discomfort (Activity)</li>
+                <li>Cold Hands / Feet</li>
+                <li>Snoring / Sleep Apnea</li>
+                <li>Anxiety / Feeling of Doom</li>
+                <li>Age (numeric)</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Predict Tab -->
+    <section id="predict" class="tab-content">
+        <div class="card">
+            <h2>Predict Your Stroke Risk</h2>
+            <p>Toggle symptoms that apply and enter your age, then click <strong>Predict</strong> to see results from all 10 models.</p>
+
+            <form id="predict-form">
+                <div class="symptoms-grid">
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="chest_pain" />
+                        <span class="toggle-label">Chest Pain</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="shortness_of_breath" />
+                        <span class="toggle-label">Shortness of Breath</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="irregular_heartbeat" />
+                        <span class="toggle-label">Irregular Heartbeat</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="fatigue_weakness" />
+                        <span class="toggle-label">Fatigue &amp; Weakness</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="dizziness" />
+                        <span class="toggle-label">Dizziness</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="swelling_edema" />
+                        <span class="toggle-label">Swelling (Edema)</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="pain_neck_jaw_shoulder_back" />
+                        <span class="toggle-label">Pain in Neck/Jaw/Shoulder/Back</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="excessive_sweating" />
+                        <span class="toggle-label">Excessive Sweating</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="persistent_cough" />
+                        <span class="toggle-label">Persistent Cough</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="nausea_vomiting" />
+                        <span class="toggle-label">Nausea / Vomiting</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="high_blood_pressure" />
+                        <span class="toggle-label">High Blood Pressure</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="chest_discomfort_activity" />
+                        <span class="toggle-label">Chest Discomfort (Activity)</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="cold_hands_feet" />
+                        <span class="toggle-label">Cold Hands / Feet</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="snoring_sleep_apnea" />
+                        <span class="toggle-label">Snoring / Sleep Apnea</span>
+                    </label>
+                    <label class="symptom-toggle">
+                        <input type="checkbox" name="anxiety_feeling_of_doom" />
+                        <span class="toggle-label">Anxiety / Feeling of Doom</span>
+                    </label>
+                </div>
+
+                <div class="age-input">
+                    <label for="age">Age</label>
+                    <input type="number" id="age" name="age" min="0" max="120" step="1" required placeholder="e.g. 55" />
+                </div>
+
+                <button type="submit" class="btn-predict" id="predict-btn">Predict</button>
+            </form>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="card results hidden">
+            <h2>Prediction Results</h2>
+
+            <div id="ensemble-result" class="ensemble-box"></div>
+
+            <h3>Individual Model Results</h3>
+            <div id="model-results" class="model-results-grid"></div>
+        </div>
+
+        <!-- Feedback form — shown after prediction results -->
+        <div id="feedback-section" class="card feedback-section hidden">
+            <h2>Share Your Experience</h2>
+            <p class="feedback-notice">
+                Would you like to leave your information? Your data will be used solely for
+                research purposes to help improve stroke risk prediction models.
+            </p>
+
+            <form id="feedback-form">
+                <div class="feedback-fields">
+                    <div class="field-group">
+                        <label for="fb-name">Name</label>
+                        <input type="text" id="fb-name" name="name" required placeholder="Your name" />
+                    </div>
+                    <div class="field-group">
+                        <label for="fb-email">Email</label>
+                        <input type="email" id="fb-email" name="email" required placeholder="you@example.com" />
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>Have you ever experienced a stroke?</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="had_stroke" value="true" required />
+                            <span>Yes</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="had_stroke" value="false" required />
+                            <span>No</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label for="fb-comment">Comments / Feedback (optional)</label>
+                    <textarea id="fb-comment" name="comment" rows="3" maxlength="2000" placeholder="Any thoughts on the system or your experience..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-feedback" id="feedback-btn">Submit Feedback</button>
+            </form>
+        </div>
+
+        <div id="error-msg" class="error-msg hidden"></div>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 Group F &mdash; Software for Intelligent Systems and Artificial Intelligence</p>
+    </footer>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
