@@ -26,6 +26,10 @@ const feedbackBtn = document.getElementById("feedback-btn");
 // Store the last prediction context so we can attach it to feedback
 let lastPredictionContext = null;
 
+// Chart instances (so we can destroy them before re-drawing)
+let modelComparisonChart = null;
+let shapChart = null;
+
 function formatModelName(name) {
     return name
         .split("_")
@@ -108,6 +112,14 @@ function renderResults(data) {
         ? `Ensemble Verdict: <span>At Risk</span> (${pct}% probability)`
         : `Ensemble Verdict: <span>Low Risk</span> (${pct}% probability)`;
 
+    // Model comparison chart
+    renderModelComparisonChart(data.predictions);
+
+    // SHAP feature importance chart
+    if (data.shap_contributions && data.shap_contributions.length > 0) {
+        renderShapChart(data.shap_contributions);
+    }
+
     // Individual models
     modelResultsDiv.innerHTML = "";
     data.predictions.forEach((pred) => {
@@ -125,6 +137,125 @@ function renderResults(data) {
     resultsDiv.classList.remove("hidden");
     feedbackSection.classList.remove("hidden");
     resultsDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderModelComparisonChart(predictions) {
+    // Destroy previous chart if it exists
+    if (modelComparisonChart) {
+        modelComparisonChart.destroy();
+    }
+
+    const ctx = document.getElementById("model-comparison-chart").getContext("2d");
+
+    // Sort by probability descending
+    const sorted = [...predictions].sort(
+        (a, b) => b.probability_at_risk - a.probability_at_risk
+    );
+
+    const labels = sorted.map((p) => formatModelName(p.model_name));
+    const values = sorted.map((p) => +(p.probability_at_risk * 100).toFixed(1));
+    const colors = sorted.map((p) =>
+        p.prediction === 1 ? "rgba(229, 62, 62, 0.75)" : "rgba(56, 161, 105, 0.75)"
+    );
+    const borders = sorted.map((p) =>
+        p.prediction === 1 ? "rgba(197, 48, 48, 1)" : "rgba(39, 103, 73, 1)"
+    );
+
+    modelComparisonChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: "Risk Probability (%)",
+                    data: values,
+                    backgroundColor: colors,
+                    borderColor: borders,
+                    borderWidth: 1,
+                },
+            ],
+        },
+        options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.parsed.x}% risk probability`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: { display: true, text: "Risk Probability (%)" },
+                },
+            },
+        },
+    });
+}
+
+function renderShapChart(contributions) {
+    // Destroy previous chart if it exists
+    if (shapChart) {
+        shapChart.destroy();
+    }
+
+    const ctx = document.getElementById("shap-chart").getContext("2d");
+
+    // Already sorted by absolute value from backend, take all features
+    const labels = contributions.map((c) => c.feature_name);
+    const values = contributions.map((c) => c.shap_value);
+    const colors = values.map((v) =>
+        v > 0 ? "rgba(229, 62, 62, 0.75)" : "rgba(56, 161, 105, 0.75)"
+    );
+    const borders = values.map((v) =>
+        v > 0 ? "rgba(197, 48, 48, 1)" : "rgba(39, 103, 73, 1)"
+    );
+
+    shapChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: "SHAP Value",
+                    data: values,
+                    backgroundColor: colors,
+                    borderColor: borders,
+                    borderWidth: 1,
+                },
+            ],
+        },
+        options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => {
+                            const val = ctx.parsed.x;
+                            const dir = val > 0 ? "increases" : "decreases";
+                            return `${dir} risk by ${Math.abs(val).toFixed(4)}`;
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: "SHAP Value (red = increases risk, green = decreases risk)",
+                    },
+                },
+            },
+        },
+    });
 }
 
 function showError(message) {

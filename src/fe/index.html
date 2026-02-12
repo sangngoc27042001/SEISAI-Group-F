@@ -167,6 +167,17 @@
 
             <div id="ensemble-result" class="ensemble-box"></div>
 
+            <h3>Model Comparison</h3>
+            <div class="chart-container">
+                <canvas id="model-comparison-chart"></canvas>
+            </div>
+
+            <h3>Feature Importance (SHAP)</h3>
+            <p class="chart-subtitle">Which symptoms contributed most to this prediction</p>
+            <div class="chart-container">
+                <canvas id="shap-chart"></canvas>
+            </div>
+
             <h3>Individual Model Results</h3>
             <div id="model-results" class="model-results-grid"></div>
         </div>
@@ -221,6 +232,7 @@
         <p>&copy; 2026 Group F &mdash; Software for Intelligent Systems and Artificial Intelligence</p>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="config.js"></script>
     <script src="app.js"></script>
 </body>

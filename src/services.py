@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 import joblib
 import numpy as np
+import shap
 from pydantic import BaseModel, Field
 
 
@@ -73,11 +74,21 @@ class SingleModelPrediction(BaseModel):
     probability_at_risk: float = Field(..., description="Probability of stroke risk")
 
 
+class FeatureContribution(BaseModel):
+    """SHAP-based feature contribution to the prediction."""
+    feature_name: str
+    shap_value: float = Field(..., description="SHAP value (positive = increases risk, negative = decreases risk)")
+
+
 class PredictionResponse(BaseModel):
     """Response schema for predictions."""
     predictions: list[SingleModelPrediction]
     ensemble_prediction: int = Field(..., description="Majority vote across all models")
     ensemble_probability: float = Field(..., description="Average probability of stroke risk")
+    shap_contributions: list[FeatureContribution] = Field(
+        default_factory=list,
+        description="SHAP feature contributions averaged across explainable models",
+    )
 
 
 class ModelService:
@@ -169,6 +180,68 @@ class ModelService:
             probability_at_risk=prob_at_risk,
         )
 
+    # Models that support fast SHAP explainers
+    TREE_MODELS = {"decision_tree", "random_forest", "gradient_boosting", "xgboost", "lightgbm"}
+    LINEAR_MODELS = {"logistic_regression"}
+
+    def _extract_shap_values(self, sv, n_features: int) -> np.ndarray | None:
+        """Extract a flat 1D array of SHAP values for class 1 (at risk) from various formats."""
+        if isinstance(sv, list):
+            # list of [class_0_array, class_1_array]
+            sv = sv[1]
+        arr = np.asarray(sv)
+        # Shape (1, n_features, 2) — pick class 1
+        if arr.ndim == 3 and arr.shape[2] == 2:
+            arr = arr[:, :, 1]
+        # Shape (1, n_features) — squeeze to 1D
+        arr = arr.squeeze()
+        if arr.ndim == 1 and arr.shape[0] == n_features:
+            return arr
+        return None
+
+    def compute_shap_values(self, X_scaled: np.ndarray) -> list[FeatureContribution]:
+        """Compute averaged SHAP values across explainable models (tree + linear).
+
+        Skips AdaBoost, SVM, KNN, Naive Bayes (unsupported or too slow).
+        """
+        n_features = X_scaled.shape[1]
+        all_shap_values = []
+
+        for model_name, model in self.models.items():
+            try:
+                if model_name in self.TREE_MODELS:
+                    explainer = shap.TreeExplainer(model)
+                    sv = explainer.shap_values(X_scaled)
+                    extracted = self._extract_shap_values(sv, n_features)
+                    if extracted is not None:
+                        all_shap_values.append(extracted)
+                elif model_name in self.LINEAR_MODELS:
+                    explainer = shap.LinearExplainer(model, X_scaled)
+                    sv = explainer.shap_values(X_scaled)
+                    extracted = self._extract_shap_values(sv, n_features)
+                    if extracted is not None:
+                        all_shap_values.append(extracted)
+            except Exception as e:
+                print(f"SHAP skipped for {model_name}: {e}")
+                continue
+
+        if not all_shap_values:
+            return []
+
+        # Average SHAP values across all explainable models
+        avg_shap = np.mean(np.array(all_shap_values), axis=0)
+
+        contributions = []
+        for i, feature_name in enumerate(FEATURE_NAMES):
+            contributions.append(FeatureContribution(
+                feature_name=feature_name,
+                shap_value=round(float(avg_shap[i]), 6),
+            ))
+
+        # Sort by absolute SHAP value descending (most important first)
+        contributions.sort(key=lambda c: abs(c.shap_value), reverse=True)
+        return contributions
+
     def predict_all_models(self, patient: PatientInput) -> PredictionResponse:
         """Make predictions using all available models."""
         if not self._loaded:
@@ -188,10 +261,16 @@ class ModelService:
         ensemble_probability = total_prob_at_risk / num_models if num_models > 0 else 0.0
         ensemble_prediction = 1 if total_prediction > num_models / 2 else 0
 
+        # Compute SHAP feature contributions
+        X = self._input_to_array(patient)
+        X_scaled = self.scaler.transform(X)
+        shap_contributions = self.compute_shap_values(X_scaled)
+
         return PredictionResponse(
             predictions=predictions,
             ensemble_prediction=ensemble_prediction,
             ensemble_probability=ensemble_probability,
+            shap_contributions=shap_contributions,
         )
 
 
