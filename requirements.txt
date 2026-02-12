@@ -15,7 +15,9 @@ seaborn>=0.12.0
 imbalanced-learn>=0.11.0
 
 # Explainability
-shap>=0.43.0
+shap>=0.46.0
+numba>=0.59.0
+llvmlite>=0.42.0
 
 # API
 fastapi>=0.109.0
