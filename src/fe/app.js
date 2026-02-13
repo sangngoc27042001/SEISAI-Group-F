@@ -104,6 +104,11 @@ form.addEventListener("submit", async (e) => {
 });
 
 function renderResults(data) {
+    // IMPORTANT: Unhide the results container BEFORE drawing charts.
+    // Chart.js measures the canvas size from its parent; if the parent is `display:none`
+    // (our `.hidden` utility class), charts end up with 0 width/height and appear blank.
+    resultsDiv.classList.remove("hidden");
+
     // Ensemble result
     const isHighRisk = data.ensemble_prediction === 1;
     const pct = (data.ensemble_probability * 100).toFixed(1);
@@ -112,13 +117,16 @@ function renderResults(data) {
         ? `Ensemble Verdict: <span>At Risk</span> (${pct}% probability)`
         : `Ensemble Verdict: <span>Low Risk</span> (${pct}% probability)`;
 
-    // Model comparison chart
-    renderModelComparisonChart(data.predictions);
+    // Draw charts on the next frame so layout has time to compute dimensions.
+    requestAnimationFrame(() => {
+        // Model comparison chart
+        renderModelComparisonChart(data.predictions);
 
-    // SHAP feature importance chart
-    if (data.shap_contributions && data.shap_contributions.length > 0) {
-        renderShapChart(data.shap_contributions);
-    }
+        // SHAP feature importance chart
+        if (data.shap_contributions && data.shap_contributions.length > 0) {
+            renderShapChart(data.shap_contributions);
+        }
+    });
 
     // Individual models
     modelResultsDiv.innerHTML = "";
@@ -134,7 +142,6 @@ function renderResults(data) {
         modelResultsDiv.appendChild(card);
     });
 
-    resultsDiv.classList.remove("hidden");
     feedbackSection.classList.remove("hidden");
     resultsDiv.scrollIntoView({ behavior: "smooth", block: "start" });
 }

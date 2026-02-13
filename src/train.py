@@ -9,7 +9,9 @@ from pathlib import Path
 import joblib
 
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+from sklearn.base import clone
 from sklearn.preprocessing import StandardScaler
+from sklearn.dummy import DummyClassifier
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     roc_auc_score, confusion_matrix, classification_report
@@ -33,6 +35,47 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+def undersample_majority(
+    X: pd.DataFrame,
+    y: pd.Series,
+    random_state: int = 42,
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Randomly downsample the dominant class to match the minority class size.
+
+    This implements the report's balancing strategy: apply undersampling on the
+    *training* data only, leaving the test set unchanged.
+    """
+
+    class_counts = y.value_counts()
+    if len(class_counts) != 2:
+        raise ValueError(
+            f"Expected binary classification for undersampling, got {len(class_counts)} classes"
+        )
+
+    majority_label = class_counts.idxmax()
+    minority_label = class_counts.idxmin()
+    n_minority = int(class_counts.min())
+
+    df = X.copy()
+    df['_y'] = y.values
+
+    df_majority = df[df['_y'] == majority_label].sample(
+        n=n_minority,
+        random_state=random_state,
+    )
+    df_minority = df[df['_y'] == minority_label]
+
+    df_balanced = (
+        pd.concat([df_majority, df_minority], axis=0)
+        .sample(frac=1.0, random_state=random_state)
+        .reset_index(drop=True)
+    )
+
+    y_bal = df_balanced['_y']
+    X_bal = df_balanced.drop(columns=['_y'])
+    return X_bal, y_bal
+
+
 def load_data(data_path: str) -> tuple[pd.DataFrame, pd.Series]:
     """Load and prepare the stroke risk dataset."""
     df = pd.read_csv(data_path)
@@ -50,6 +93,7 @@ def load_data(data_path: str) -> tuple[pd.DataFrame, pd.Series]:
 def get_models() -> dict:
     """Return a dictionary of models to train."""
     models = {
+        'Dummy (Most Frequent)': DummyClassifier(strategy='most_frequent', random_state=42),
         'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
         'Decision Tree': DecisionTreeClassifier(random_state=42),
         'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
@@ -86,18 +130,53 @@ def evaluate_model(model, X_train, X_test, y_train, y_test) -> dict:
 
 
 def cross_validate_models(models: dict, X, y, cv: int = 5) -> pd.DataFrame:
-    """Perform cross-validation for all models."""
+    """Perform cross-validation for all models.
+
+    Uses stratified folds and applies the same *training-only* undersampling strategy
+    inside each fold to avoid leakage.
+    """
+
     results = []
     skf = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
 
     for name, model in models.items():
-        scores = cross_val_score(model, X, y, cv=skf, scoring='f1')
+        fold_scores: list[float] = []
+
+        for train_idx, val_idx in skf.split(X, y):
+            X_train_fold = X.iloc[train_idx]
+            y_train_fold = y.iloc[train_idx]
+            X_val_fold = X.iloc[val_idx]
+            y_val_fold = y.iloc[val_idx]
+
+            # For the Dummy baseline, keep the original fold distribution.
+            # For learned models, apply undersampling on the training fold only.
+            if not name.startswith('Dummy'):
+                X_train_fold, y_train_fold = undersample_majority(
+                    X_train_fold,
+                    y_train_fold,
+                    random_state=42,
+                )
+
+            # Scale using fold training data only
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train_fold)
+            X_val_scaled = scaler.transform(X_val_fold)
+
+            # Clone to avoid mutating the original estimator (we later save full-trained models)
+            model_fold = clone(model)
+            model_fold.fit(X_train_scaled, y_train_fold)
+            y_val_pred = model_fold.predict(X_val_scaled)
+            fold_scores.append(f1_score(y_val_fold, y_val_pred))
+
+        fold_scores_arr = np.array(fold_scores, dtype=float)
         results.append({
             'Model': name,
-            'CV F1 Mean': scores.mean(),
-            'CV F1 Std': scores.std(),
+            'CV F1 Mean': float(fold_scores_arr.mean()),
+            'CV F1 Std': float(fold_scores_arr.std()),
         })
-        print(f"{name}: CV F1 = {scores.mean():.4f} (+/- {scores.std():.4f})")
+        print(
+            f"{name}: CV F1 = {fold_scores_arr.mean():.4f} (+/- {fold_scores_arr.std():.4f})"
+        )
 
     return pd.DataFrame(results)
 
@@ -113,6 +192,9 @@ def save_models(models: dict, scaler: StandardScaler, models_dir: Path):
 
     # Save each model
     for name, model in models.items():
+        # Don't persist the Dummy baseline as a production model
+        if name.startswith('Dummy'):
+            continue
         # Create filename from model name
         filename = name.lower().replace(' ', '_').replace('-', '_') + '.joblib'
         model_path = models_dir / filename
@@ -126,6 +208,24 @@ def train_and_compare(X, y, models_dir: Path, test_size: float = 0.2):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42, stratify=y
     )
+
+    # Keep an unbalanced copy of the training split for the Dummy baseline.
+    # The DummyClassifier("most_frequent") should reflect the original class prior,
+    # not the post-undersampling distribution.
+    X_train_unbalanced = X_train.copy()
+    y_train_unbalanced = y_train.copy()
+
+    # Balance training data only (downsample dominant class)
+    print("\n" + "=" * 60)
+    print("TRAINING SET BALANCING (UNDERSAMPLING)")
+    print("=" * 60)
+    print("Before balancing (train):")
+    print(y_train.value_counts())
+    X_train, y_train = undersample_majority(X_train, y_train, random_state=42)
+    print("After balancing (train):")
+    print(y_train.value_counts())
+    print("Test set kept unchanged:")
+    print(y_test.value_counts())
 
     # Scale features
     scaler = StandardScaler()
@@ -144,7 +244,19 @@ def train_and_compare(X, y, models_dir: Path, test_size: float = 0.2):
 
     for name, model in models.items():
         print(f"\nTraining {name}...")
-        metrics = evaluate_model(model, X_train_scaled, X_test_scaled, y_train, y_test)
+
+        # Baseline: train Dummy on the original (unbalanced) training split
+        if name.startswith('Dummy'):
+            metrics = evaluate_model(
+                model,
+                X_train_unbalanced,
+                X_test,
+                y_train_unbalanced,
+                y_test,
+            )
+        else:
+            metrics = evaluate_model(model, X_train_scaled, X_test_scaled, y_train, y_test)
+
         metrics['Model'] = name
         results.append(metrics)
         trained_models[name] = model
@@ -171,9 +283,8 @@ def train_and_compare(X, y, models_dir: Path, test_size: float = 0.2):
     print("CROSS-VALIDATION RESULTS (5-Fold)")
     print("="*60)
 
-    # Scale all data for CV
-    X_scaled = scaler.fit_transform(X)
-    cv_results = cross_validate_models(models, X_scaled, y)
+    # Cross-validation (balancing applied inside each fold)
+    cv_results = cross_validate_models(models, X, y)
 
     # Find best model
     best_model_name = results_df.iloc[0]['Model']
